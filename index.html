@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            background: antiquewhite;
+        }
+
+        .legend {
+            display: table;
+            margin: 0 auto;
+            font-family: "Helvetica Neue", sans-serif;
+            font-size: 12px;
+            height: 35px;
+            width: 250px;
+        }
+
+        .district .selected {
+            stroke: red;
+            stroke-width: 10;
+        }
+
+        .legendLinear .label {
+            font-size: 8px;
+        }
+
+        .legendLinear .legendTitle {
+            font-size: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="tooltip"></div>
+    <h1 style="text-align: center;">Subdistricts in SG</h1> <svg></svg>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.13.0/d3-legend.js"></script>
+
+    <script>
+
+        let width = 1000, height = 600;
+
+        let svg = d3.select("svg")
+            .attr("viewBox", "0 0 " + width + " " + height)
+
+        // Color scale
+        let population = new Map()
+        const colorScale = d3.scaleLinear()
+            .domain([8000, 18000, 24000, 32000, 40000, 48000, 56000, 84000])
+            .range(d3.schemeBlues[7]);
+
+        // Legend
+
+
+        var linear = d3.scaleLinear()
+            .domain([0, 10])
+            .range(["rgb(46, 73, 123)", "rgb(71, 187, 94)"]);
+
+        svg.append("g")
+            .attr("class", "legendLinear")
+            .attr("transform", `translate(20,20)`);
+
+        var legendLinear = d3.legendColor()
+            .title('Population')
+            .shapeWidth(20)
+            .cells([8000, 18000, 24000, 32000, 40000, 48000, 56000, 64000])
+            .labels([8000, 18000, 24000, 32000, 40000, 48000, 56000, 64000])
+            .orient('horizontal')
+            .scale(colorScale);
+
+
+        svg.select(".legendLinear")
+            .call(legendLinear);
+
+
+        // Load external data
+        Promise.all([d3.json("sgmap.json", function (d) {
+        }), d3.csv("population2021.csv", function (d) {
+            population.set(d.Subzone.toUpperCase(), d.Population)
+        })]).then(data => {
+            var sgmap = new Map();
+            data[0].features.forEach((element) => {
+                sgmap.set(element.properties.Name, { ...element, population: population.get(element.properties.Name) })
+            })
+
+            // Map and projection
+            var projection = d3.geoMercator()
+                .center([103.851959, 1.290270])
+                .fitExtent([[20, 20], [980, 580]], data[0]);
+
+            let geopath = d3.geoPath().projection(projection);
+
+            svg.append("g")
+                .attr("class", "district")
+                .attr("id", "districts")
+                .selectAll("path")
+                .data(data[0].features)
+                .enter()
+                .append("path")
+                .attr("d", geopath)
+                // .attr("fill", "black");
+                .attr("fill", function (d) {
+                    d.population = sgmap.get(d.properties.Name).population || 0;
+                    return colorScale(d.population);
+                })
+                .on("mouseover", (event, d) => {
+                    d3.select(".tooltip")
+                        .html("<span>" + d.properties.Name + "<br/>" + sgmap.get(d.properties.Name).population + "</span>")
+                        // .text(`${d.properties.Name}`)
+                        .style("position", "absolute")
+                        .style("background", "#fff")
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY) + "px");
+
+                    let path = d3.select(event.currentTarget);
+                    path.classed("selected", true)
+                    // path.style("stroke", "red").style("stroke-width", 10);
+                })
+                .on("mouseout", (event, d) => {
+                    d3.select(".tooltip")
+                        .text("");
+
+                    let path = d3.select(event.currentTarget);
+
+                    path.classed("selected", false)
+
+                })
+        })
+
+
+
+    </script>
+
+</body>
+
+</html>
